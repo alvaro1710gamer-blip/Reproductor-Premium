@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Reproductor Musical Pro</title>
+<style>
+body { font-family:'Segoe UI', Tahoma, Geneva, Verdana,sans-serif; background:linear-gradient(to right,#4e54c8,#8f94fb); margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh; color:#fff; transition: background 0.5s,color 0.5s;}
+body.claro{background:linear-gradient(to right,#f0f0f0,#d0d0ff); color:#111;}
+#contenedor-reproductor{background:rgba(0,0,0,0.7); border-radius:20px; padding:30px; width:580px; box-shadow:0 8px 30px rgba(0,0,0,0.5); display:flex; flex-direction:column; align-items:center; transition: background 0.5s;}
+body.claro #contenedor-reproductor{background:rgba(255,255,255,0.8);}
+#portada{width:180px;height:180px;border-radius:15px; object-fit:cover;margin-bottom:10px; box-shadow:0 5px 20px rgba(0,0,0,0.5);}
+body.claro #portada{box-shadow:0 5px 20px rgba(0,0,0,0.2);}
+#nombreCancion{font-size:20px;font-weight:bold;margin-bottom:5px;text-align:center;}
+#barrasProgreso{display:flex;width:100%;align-items:center;justify-content:space-between;margin-bottom:10px;}
+#progreso{flex:1;margin:0 10px;accent-color:#8f94fb;cursor:pointer;}
+#controles{display:flex;justify-content:space-between;width:100%;margin-bottom:15px;}
+#controles button{background:#fff;color:#333;border:none;border-radius:50%;width:50px;height:50px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:0.3s;}
+#controles button:hover{background:#8f94fb;color:#fff;}
+#playlist, #playlistsUsuario{width:100%;margin-top:10px;background:rgba(255,255,255,0.1);border-radius:10px;padding:10px;max-height:200px;overflow-y:auto;}
+#playlist div, #playlistsUsuario div{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-radius:8px;cursor:pointer;transition:0.2s;}
+#playlist div:hover, #playlistsUsuario div:hover{background:rgba(255,255,255,0.3);}
+#playlist .activo{background:rgba(255,255,255,0.5); font-weight:bold;}
+.imagenCancion{width:40px;height:40px;border-radius:5px;margin-right:10px;object-fit:cover;}
+#letras{width:100%;max-height:150px;overflow-y:auto;margin-top:10px;padding:10px;background:rgba(255,255,255,0.1);border-radius:10px;font-size:14px;white-space:pre-wrap;transition: background 0.5s;}
+body.claro #letras{background:rgba(0,0,0,0.05);}
+#tema,#crearPlaylist,#verPlaylists{margin:5px;padding:5px 10px;border-radius:5px;border:none;cursor:pointer;background:#fff;color:#333;transition:0.5s;}
+#tema:hover,#crearPlaylist:hover,#verPlaylists:hover{background:#8f94fb;color:#fff;}
+#ondas{width:100%;height:50px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+.barra{width:3px;background:#8f94fb;height:10px;animation:onda 1s infinite;}
+@keyframes onda{0%,100%{height:10px;}50%{height:40px;}}
+.smallButton{padding:2px 6px;margin-left:5px;border-radius:4px;background:#fff;color:#333;cursor:pointer;transition:0.3s;}
+.smallButton:hover{background:#8f94fb;color:#fff;}
+</style>
+</head>
+<body>
+
+<div id="contenedor-reproductor">
+  <img id="portada" src="https://via.placeholder.com/180" alt="Portada">
+  <p id="nombreCancion">Cargando...</p>
+  <div id="ondas"></div>
+
+  <div id="barrasProgreso">
+    <span id="tiempoActual">0:00</span>
+    <input type="range" id="progreso" value="0">
+    <span id="duracionTotal">0:00</span>
+  </div>
+
+  <div id="controles">
+    <button id="anterior">&#9194;</button>
+    <button id="reproducir">&#9654;</button>
+    <button id="siguiente">&#9193;</button>
+    <button id="aleatorio">&#128256;</button>
+    <button id="repetir">&#128257;</button>
+  </div>
+
+  <div>
+    <input type="file" id="subirCancion" accept="audio/*">
+    <button onclick="subirCancion()">Subir canción</button>
+    <button id="tema" onclick="cambiarTema()">Cambiar tema</button>
+    <button id="crearPlaylist" onclick="crearPlaylist()">Crear Playlist</button>
+    <button id="verPlaylists" onclick="togglePlaylists()">Ver Playlists</button>
+  </div>
+
+  <div id="playlistsUsuario" style="display:none;"><strong>Playlists:</strong></div>
+  <div id="playlist"></div>
+  <div id="letras">Las letras aparecerán aquí...</div>
+
+  <audio id="audio"></audio>
+</div>
+
+<script>
+// Datos y persistencia
+let cancionesDefault = [
+  {nombre:"Sol Acústico", archivo:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", portada:"https://via.placeholder.com/150/ff7f50/ffffff?text=Acustico1", letras:"Guitarra acústica suave, piano de fondo."},
+  {nombre:"Brisa del Amanecer", archivo:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", portada:"https://via.placeholder.com/150/6495ed/ffffff?text=Acustico2", letras:"Piano melodioso con guitarra ligera."},
+  {nombre:"Olas Serenas", archivo:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", portada:"https://via.placeholder.com/150/dda0dd/ffffff?text=Acustico3", letras:"Bajo marcado, guitarra y piano."},
+  {nombre:"Atardecer Calmado", archivo:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", portada:"https://via.placeholder.com/150/20b2aa/ffffff?text=Acustico4", letras:"Guitarra acústica con percusión suave."},
+  {nombre:"Noche Estrellada", archivo:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", portada:"https://via.placeholder.com/150/ff69b4/ffffff?text=Acustico5", letras:"Piano suave con notas de bajo."},
+];
+
+let canciones = JSON.parse(localStorage.getItem("canciones")) || cancionesDefault;
+let playlists = JSON.parse(localStorage.getItem("playlists")) || {};
+let indiceActual = parseInt(localStorage.getItem("indiceActual")) || 0;
+let tiempoActual = parseFloat(localStorage.getItem("tiempoActual")) || 0;
+let reproducirActivo = false;
+let repetirActivo = false;
+let playlistActual = canciones;
+
+let audio = document.getElementById("audio");
+let nombreCancion = document.getElementById("nombreCancion");
+let portada = document.getElementById("portada");
+let progreso = document.getElementById("progreso");
+let playlistDiv = document.getElementById("playlist");
+let playlistsDiv = document.getElementById("playlistsUsuario");
+let letrasDiv = document.getElementById("letras");
+let ondas = document.getElementById("ondas");
+let tiempoActEl = document.getElementById("tiempoActual");
+let duracionEl = document.getElementById("duracionTotal");
+let viendoPlaylists = false;
+
+// --- Inicializar playlist ---
+function initPlaylist(){
+  playlistDiv.innerHTML="";
+  playlistActual.forEach((c,i)=>{
+    const div = document.createElement("div");
+    div.id = "cancion-"+i;
+    const span = document.createElement("span"); span.textContent=c.nombre;
+    const img = document.createElement("img"); img.src=c.portada; img.className="imagenCancion"; div.appendChild(img);
+    div.appendChild(span);
+
+    const btnAgregar = document.createElement("button"); btnAgregar.textContent="➕"; btnAgregar.className="smallButton"; btnAgregar.title="Agregar a playlist"; 
+    btnAgregar.onclick=(e)=>{e.stopPropagation(); agregarACualquierPlaylist(i);}
+    const btnEliminar = document.createElement("button"); btnEliminar.textContent="🗑"; btnEliminar.className="smallButton"; btnEliminar.title="Eliminar canción"; 
+    btnEliminar.onclick=(e)=>{e.stopPropagation(); eliminarCancion(i);}
+    div.appendChild(btnAgregar); div.appendChild(btnEliminar);
+
+    div.onclick = ()=>{indiceActual=i;cargarCancion(indiceActual);}
+    playlistDiv.appendChild(div);
+  });
+}
+initPlaylist();
+
+// --- Inicializar playlists ---
+function initPlaylists(){
+  playlistsDiv.innerHTML="<strong>Playlists:</strong>";
+  for(let nombre in playlists){
+    const div = document.createElement("div"); div.textContent=nombre;
+    div.onclick = ()=>{playlistActual=playlists[nombre]; indiceActual=0; initPlaylist(); cargarCancion(indiceActual);}
+    const btnEliminar = document.createElement("button"); btnEliminar.textContent="🗑"; btnEliminar.className="smallButton"; btnEliminar.title="Eliminar playlist";
+    btnEliminar.onclick=(e)=>{e.stopPropagation(); eliminarPlaylist(nombre);}
+    div.appendChild(btnEliminar);
+    playlistsDiv.appendChild(div);
+  }
+}
+initPlaylists();
+
+// --- Funciones de playlist y canciones ---
+function crearPlaylist(){ let nombre=prompt("Nombre de la nueva playlist:"); if(!nombre) return; playlists[nombre]=[]; localStorage.setItem("playlists",JSON.stringify(playlists)); initPlaylists(); alert("Playlist creada: "+nombre);}
+function eliminarPlaylist(nombre){ if(confirm("Eliminar playlist "+nombre+"?")){ delete playlists[nombre]; localStorage.setItem("playlists",JSON.stringify(playlists)); initPlaylists(); if(playlistActual===playlists[nombre]){playlistActual=canciones; initPlaylist();}}}
+function agregarACualquierPlaylist(i){ let nombre=prompt("Agregar a playlist: Escribe el nombre de la playlist"); if(!nombre||!playlists[nombre]){alert("Playlist no existe"); return;} playlists[nombre].push(canciones[i]); localStorage.setItem("playlists",JSON.stringify(playlists)); alert("Canción agregada a "+nombre);}
+function eliminarCancion(i){ if(confirm("Eliminar canción?")){ let c=playlistActual[i]; let idx=canciones.indexOf(c); if(idx>=0)canciones.splice(idx,1); for(let pl in playlists){playlists[pl]=playlists[pl].filter(x=>x!==c);} localStorage.setItem("canciones",JSON.stringify(canciones)); localStorage.setItem("playlists",JSON.stringify(playlists)); playlistActual=playlistActual.filter(x=>x!==c); initPlaylist(); initPlaylists(); indiceActual=0; cargarCancion(indiceActual); }}
+
+// --- Cargar canción ---
+function cargarCancion(i){ let c=playlistActual[i]; audio.src=c.archivo; nombreCancion.textContent=c.nombre; portada.src=c.portada; letrasDiv.textContent=c.letras||"No hay letras"; resaltarActivo(); audio.currentTime=(i===indiceActual)?tiempoActual:0; audio.play(); reproducirActivo=true; }
+function resaltarActivo(){ playlistActual.forEach((_,i)=>{document.getElementById("cancion-"+i)?.classList.remove("activo");}); document.getElementById("cancion-"+indiceActual)?.classList.add("activo"); }
+
+// --- Controles ---
+document.getElementById("reproducir").onclick=()=>{if(reproducirActivo){audio.pause();reproducirActivo=false;}else{audio.play();reproducirActivo=true;}}
+document.getElementById("anterior").onclick=()=>{indiceActual=(indiceActual-1+playlistActual.length)%playlistActual.length; tiempoActual=0;cargarCancion(indiceActual);}
+document.getElementById("siguiente").onclick=()=>{indiceActual=(indiceActual+1)%playlistActual.length; tiempoActual=0;cargarCancion(indiceActual);}
+document.getElementById("aleatorio").onclick=()=>{indiceActual=Math.floor(Math.random()*playlistActual.length); tiempoActual=0;cargarCancion(indiceActual);}
+document.getElementById("repetir").onclick=()=>{repetirActivo=!repetirActivo; audio.loop=repetirActivo; alert("Repetición "+(repetirActivo?"activada":"desactivada"));}
+
+// --- Barra de progreso ---
+function formatTime(sec){ let m=Math.floor(sec/60); let s=Math.floor(sec%60); return m+":"+(s<10?"0"+s:s); }
+audio.addEventListener("timeupdate",()=>{ if(audio.duration){progreso.value=(audio.currentTime/audio.duration)*100; tiempoActEl.textContent=formatTime(audio.currentTime); duracionEl.textContent=formatTime(audio.duration);} localStorage.setItem("tiempoActual",audio.currentTime); localStorage.setItem("indiceActual",indiceActual);});
+progreso.addEventListener("input",()=>{if(audio.duration) audio.currentTime=(progreso.value/100)*audio.duration;});
+audio.addEventListener("ended",()=>{if(!repetirActivo) indiceActual=(indiceActual+1)%playlistActual.length;cargarCancion(indiceActual);});
+
+// --- Subir canción ---
+function subirCancion(){ const archivo=document.getElementById("subirCancion").files[0]; if(!archivo) return; const reader=new FileReader(); reader.onload=function(e){ canciones.push({nombre:archivo.name, archivo:e.target.result, portada:"https://via.placeholder.com/150/999/ffffff?text=Local", letras:"No hay letras disponibles."}); localStorage.setItem("canciones",JSON.stringify(canciones)); playlistActual=canciones; initPlaylist(); initPlaylists(); alert("Canción subida correctamente y guardada."); }; reader.readAsDataURL(archivo);}
+
+// --- Tema ---
+function cambiarTema(){ document.body.classList.toggle("claro"); }
+
+// --- Ondas ---
+function initOndas(){ ondas.innerHTML=""; for(let i=0;i<50;i++){let b=document.createElement("div"); b.className="barra"; b.style.animationDelay=(i*0.05)+"s"; ondas.appendChild(b);} }
+initOndas();
+
+// --- Toggle playlists ---
+function togglePlaylists(){ viendoPlaylists=!viendoPlaylists; playlistsDiv.style.display=viendoPlaylists?"block":"none"; playlistDiv.style.display=viendoPlaylists?"none":"block"; }
+
+// --- Iniciar ---
+cargarCancion(indiceActual);
+</script>
+</body>
+</html>
